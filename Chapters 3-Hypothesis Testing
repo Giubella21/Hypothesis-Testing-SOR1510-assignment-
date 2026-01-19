@@ -1,0 +1,348 @@
+%For the Hypotheses testing
+
+
+
+
+
+# ===========================================
+# STEP 1: Install required packages (run only once)
+# ===========================================
+# Uncomment and run if you haven't installed these:
+# install.packages("tidyverse")
+# install.packages("car")
+# install.packages("ggpubr")
+# install.packages("corrplot")
+
+# ===========================================
+# STEP 2: Load required libraries
+# ===========================================
+library(tidyverse)
+library(car)
+library(ggpubr)
+library(corrplot)
+
+# ===========================================
+# STEP 3: Define the hypothesis testing functions
+# ===========================================
+
+# 1. Welch's t-test function
+welch_test <- function(data, quantitative_var, qualitative_var) {
+  if (length(unique(data[[qualitative_var]])) != 2) {
+    stop("Qualitative variable must have exactly 2 levels for Welch's t-test")
+  }
+  
+  result <- t.test(data[[quantitative_var]] ~ data[[qualitative_var]], 
+                   var.equal = FALSE)
+  
+  cat("\n=== Welch's t-test Results ===\n")
+  cat(paste("Comparing", quantitative_var, "by", qualitative_var, "\n"))
+  cat(paste("t-value:", round(result$statistic, 4), "\n"))
+  cat(paste("p-value:", round(result$p.value, 4), "\n"))
+  cat(paste("95% CI: [", round(result$conf.int[1], 4), ",", 
+            round(result$conf.int[2], 4), "]\n"))
+  
+  p <- ggplot(data, aes(x = .data[[qualitative_var]], 
+                        y = .data[[quantitative_var]],
+                        fill = .data[[qualitative_var]])) +
+    geom_boxplot(alpha = 0.7) +
+    geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+    stat_compare_means(method = "t.test", label = "p.format") +
+    labs(title = paste("Welch's t-test:", quantitative_var, "by", qualitative_var),
+         x = qualitative_var,
+         y = quantitative_var) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)
+  return(result)
+}
+
+# 2. Chi-square test function
+chi_square_test <- function(data, var1, var2) {
+  contingency_table <- table(data[[var1]], data[[var2]])
+  result <- chisq.test(contingency_table)
+  
+  cat("\n=== Chi-square Test Results ===\n")
+  cat(paste("Testing independence between", var1, "and", var2, "\n"))
+  cat(paste("Chi-square statistic:", round(result$statistic, 4), "\n"))
+  cat(paste("Degrees of freedom:", result$parameter, "\n"))
+  cat(paste("p-value:", round(result$p.value, 4), "\n"))
+  
+  # Mosaic plot
+  mosaicplot(contingency_table,
+             main = paste("Mosaic Plot:", var1, "vs", var2),
+             xlab = var1,
+             ylab = var2,
+             color = TRUE,
+             shade = TRUE)
+  
+  return(result)
+}
+
+# 3. ANOVA function
+anova_test <- function(data, quantitative_var, qualitative_var) {
+  if (length(unique(data[[qualitative_var]])) < 3) {
+    stop("Qualitative variable must have at least 3 levels for ANOVA")
+  }
+  
+  model <- aov(data[[quantitative_var]] ~ data[[qualitative_var]])
+  result <- summary(model)
+  
+  cat("\n=== ANOVA Results ===\n")
+  cat(paste("Comparing", quantitative_var, "by", qualitative_var, "\n"))
+  print(result)
+  
+  # Check assumptions
+  cat("\n=== Assumption Checking ===\n")
+  residuals <- residuals(model)
+  shapiro_test <- shapiro.test(residuals)
+  cat(paste("Shapiro-Wilk normality test p-value:", 
+            round(shapiro_test$p.value, 4), "\n"))
+  
+  levene_test <- leveneTest(data[[quantitative_var]] ~ data[[qualitative_var]])
+  cat(paste("Levene's test p-value:", 
+            round(levene_test$`Pr(>F)`[1], 4), "\n"))
+  
+  p <- ggplot(data, aes(x = .data[[qualitative_var]], 
+                        y = .data[[quantitative_var]],
+                        fill = .data[[qualitative_var]])) +
+    geom_boxplot(alpha = 0.7) +
+    geom_jitter(width = 0.2, alpha = 0.5, size = 1) +
+    stat_compare_means(method = "anova", label = "p.format") +
+    labs(title = paste("ANOVA:", quantitative_var, "by", qualitative_var),
+         subtitle = paste("F =", round(result[[1]]$`F value`[1], 3),
+                         ", p =", round(result[[1]]$`Pr(>F)`[1], 4)),
+         x = qualitative_var,
+         y = quantitative_var) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p)
+  
+  if (result[[1]]$`Pr(>F)`[1] < 0.05) {
+    cat("\n=== Post-hoc Tukey HSD Test ===\n")
+    tukey_result <- TukeyHSD(model)
+    print(tukey_result)
+    plot(tukey_result, las = 2)
+  }
+  
+  return(list(anova = result, model = model))
+}
+
+# 4. Spearman correlation function
+spearman_correlation <- function(data, var1, var2) {
+  result <- cor.test(data[[var1]], data[[var2]], 
+                     method = "spearman", exact = FALSE)
+  
+  cat("\n=== Spearman Correlation Results ===\n")
+  cat(paste("Correlation between", var1, "and", var2, "\n"))
+  cat(paste("Spearman's rho:", round(result$estimate, 4), "\n"))
+  cat(paste("p-value:", round(result$p.value, 4), "\n"))
+  
+  p <- ggplot(data, aes(x = .data[[var1]], y = .data[[var2]])) +
+    geom_point(alpha = 0.6, size = 2) +
+    geom_smooth(method = "lm", se = TRUE, color = "red", alpha = 0.2) +
+    stat_cor(method = "spearman", label.x.npc = "left", label.y.npc = "top") +
+    labs(title = paste("Spearman Correlation:", var1, "vs", var2),
+         x = var1,
+         y = var2) +
+    theme_minimal()
+  
+  print(p)
+  return(result)
+}
+
+# 5. Correlation matrix function
+plot_correlation_matrix <- function(data, variables) {
+  quant_data <- data %>% select(all_of(variables))
+  cor_matrix <- cor(quant_data, method = "spearman")
+  
+  corrplot(cor_matrix,
+           method = "color",
+           type = "upper",
+           tl.col = "black",
+           tl.srt = 45,
+           addCoef.col = "black",
+           number.cex = 0.7,
+           title = "Spearman Correlation Matrix",
+           mar = c(0, 0, 1, 0))
+  
+  return(round(cor_matrix, 3))
+}
+
+# ===========================================
+# STEP 4: Load your CSV file from your path
+# ===========================================
+
+# Load the data from your specified path
+df <- read.csv("C:/Users/giumo/OneDrive/Documents/plasma_retinol_data.csv")
+
+# Check if file loaded correctly
+cat("Data loaded successfully!\n")
+cat("Number of rows:", nrow(df), "\n")
+cat("Number of columns:", ncol(df), "\n")
+cat("\nColumn names:\n")
+print(names(df))
+
+# Convert categorical variables to factors
+df$SEX <- factor(df$SEX, levels = c("Male", "Female"))
+df$SMOKSTAT <- factor(df$SMOKSTAT, levels = c("Never", "Former", "Current"))
+df$VITUSE <- factor(df$VITUSE, levels = c("Often", "Sometimes", "Never"))
+
+# Check the structure
+str(df)
+
+# ===========================================
+# STEP 5: Run the hypothesis tests
+# ===========================================
+
+cat(paste0("\n", paste(rep("=", 50), collapse = ""), "\n"))
+cat("RUNNING ALL HYPOTHESIS TESTS\n")
+cat(paste(rep("=", 50), collapse = ""), "\n\n")
+
+# 1. Welch's t-test: RETPLASMA by SEX
+cat("\n1. WELCH'S T-TEST: Plasma Retinol by Sex\n")
+welch_result1 <- welch_test(df, "RETPLASMA", "SEX")
+
+# 2. ANOVA: RETPLASMA by SMOKSTAT (3 groups)
+cat("\n2. ANOVA: Plasma Retinol by Smoking Status\n")
+anova_result1 <- anova_test(df, "RETPLASMA", "SMOKSTAT")
+
+# 3. ANOVA: BETAPLASMA by VITUSE
+cat("\n3. ANOVA: Plasma Beta-Carotene by Vitamin Use\n")
+anova_result2 <- anova_test(df, "BETAPLASMA", "VITUSE")
+
+# 4. Chi-square: SMOKSTAT vs VITUSE
+cat("\n4. CHI-SQUARE TEST: Smoking Status vs Vitamin Use\n")
+chi_result <- chi_square_test(df, "SMOKSTAT", "VITUSE")
+
+# 5. Spearman correlation: RETPLASMA vs AGE
+cat("\n5. SPEARMAN CORRELATION: Plasma Retinol vs Age\n")
+spearman_result1 <- spearman_correlation(df, "RETPLASMA", "AGE")
+
+# 6. Spearman correlation: BETAPLASMA vs BETADIET
+cat("\n6. SPEARMAN CORRELATION: Plasma vs Dietary Beta-Carotene\n")
+spearman_result2 <- spearman_correlation(df, "BETAPLASMA", "BETADIET")
+
+# 7. Correlation matrix (from your table)
+cat("\n7. CORRELATION MATRIX: Key Variables\n")
+cor_matrix <- plot_correlation_matrix(df, 
+  c("RETPLASMA", "BETAPLASMA", "AGE", "QUETELET", "FIBER"))
+print(cor_matrix)
+
+# ===========================================
+# STEP 6: Save all plots to PDF
+# ===========================================
+
+# Open PDF device
+pdf("C:/Users/giumo/OneDrive/Documents/hypothesis_testing_results.pdf", 
+    width = 11, height = 8.5)
+
+# Plot 1: RETPLASMA by SEX
+p1 <- ggplot(df, aes(x = SEX, y = RETPLASMA, fill = SEX)) +
+  geom_boxplot() +
+  stat_compare_means(method = "t.test") +
+  labs(title = "Plasma Retinol by Sex (Welch's t-test)") +
+  theme_minimal()
+print(p1)
+
+# Plot 2: RETPLASMA by SMOKSTAT
+p2 <- ggplot(df, aes(x = SMOKSTAT, y = RETPLASMA, fill = SMOKSTAT)) +
+  geom_boxplot() +
+  stat_compare_means(method = "anova") +
+  labs(title = "Plasma Retinol by Smoking Status (ANOVA)") +
+  theme_minimal()
+print(p2)
+
+# Plot 3: BETAPLASMA by VITUSE
+p3 <- ggplot(df, aes(x = VITUSE, y = BETAPLASMA, fill = VITUSE)) +
+  geom_boxplot() +
+  stat_compare_means(method = "anova") +
+  labs(title = "Plasma Beta-Carotene by Vitamin Use (ANOVA)") +
+  theme_minimal()
+print(p3)
+
+# Plot 4: Age vs RETPLASMA
+p4 <- ggplot(df, aes(x = AGE, y = RETPLASMA)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  stat_cor(method = "spearman") +
+  labs(title = "Spearman Correlation: Age vs Plasma Retinol") +
+  theme_minimal()
+print(p4)
+
+# Plot 5: BETADIET vs BETAPLASMA
+p5 <- ggplot(df, aes(x = BETADIET, y = BETAPLASMA)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  stat_cor(method = "spearman") +
+  labs(title = "Spearman Correlation: Dietary vs Plasma Beta-Carotene") +
+  theme_minimal()
+print(p5)
+
+# Plot 6: Mosaic plot
+mosaicplot(table(df$SMOKSTAT, df$VITUSE),
+           main = "Chi-square: Smoking Status vs Vitamin Use",
+           xlab = "Smoking Status",
+           ylab = "Vitamin Use",
+           color = TRUE)
+
+# Plot 7: Correlation matrix
+corrplot(cor(df %>% select(RETPLASMA, BETAPLASMA, AGE, QUETELET, FIBER)),
+         method = "color",
+         title = "Correlation Matrix of Key Variables")
+
+# Close PDF device
+dev.off()
+
+cat(paste0("\n", paste(rep("=", 50), collapse = ""), "\n"))
+cat("ANALYSIS COMPLETE!\n")
+cat("All plots saved to: C:/Users/giumo/OneDrive/Documents/hypothesis_testing_results.pdf\n")
+cat(paste(rep("=", 50), collapse = ""), "\n")
+
+# ===========================================
+# STEP 7: Create summary table
+# ===========================================
+
+summary_table <- data.frame(
+  Test = c("Welch's t-test (RETPLASMA by SEX)",
+           "ANOVA (RETPLASMA by SMOKSTAT)",
+           "ANOVA (BETAPLASMA by VITUSE)",
+           "Chi-square (SMOKSTAT vs VITUSE)",
+           "Spearman (RETPLASMA vs AGE)",
+           "Spearman (BETAPLASMA vs BETADIET)"),
+  Statistic = c(
+    round(welch_result1$statistic, 4),
+    round(anova_result1$anova[[1]]$`F value`[1], 4),
+    round(anova_result2$anova[[1]]$`F value`[1], 4),
+    round(chi_result$statistic, 4),
+    round(spearman_result1$estimate, 4),
+    round(spearman_result2$estimate, 4)
+  ),
+  P_value = c(
+    round(welch_result1$p.value, 4),
+    round(anova_result1$anova[[1]]$`Pr(>F)`[1], 4),
+    round(anova_result2$anova[[1]]$`Pr(>F)`[1], 4),
+    round(chi_result$p.value, 4),
+    round(spearman_result1$p.value, 4),
+    round(spearman_result2$p.value, 4)
+  ),
+  Significance = c(
+    ifelse(welch_result1$p.value < 0.05, "Significant", "Not significant"),
+    ifelse(anova_result1$anova[[1]]$`Pr(>F)`[1] < 0.05, "Significant", "Not significant"),
+    ifelse(anova_result2$anova[[1]]$`Pr(>F)`[1] < 0.05, "Significant", "Not significant"),
+    ifelse(chi_result$p.value < 0.05, "Significant", "Not significant"),
+    ifelse(spearman_result1$p.value < 0.05, "Significant", "Not significant"),
+    ifelse(spearman_result2$p.value < 0.05, "Significant", "Not significant")
+  )
+)
+
+cat("\nSUMMARY TABLE:\n")
+print(summary_table)
+
+# Save summary table to CSV
+write.csv(summary_table, 
+          "C:/Users/giumo/OneDrive/Documents/hypothesis_summary.csv", 
+          row.names = FALSE)
+
+cat("\nSummary table saved to: C:/Users/giumo/OneDrive/Documents/hypothesis_summary.csv\n")
