@@ -1,0 +1,406 @@
+
+# Load necessary libraries
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+
+# Read the data
+data <- read.csv("C:/Users/giumo/OneDrive/Documents/plasma_retinol_data.csv")
+
+# Create a directory for saving plots if it doesn't exist
+plot_dir <- "C:/Users/giumo/OneDrive/Documents/Plasma_Retinol_Plots"
+if (!dir.exists(plot_dir)) {
+  dir.create(plot_dir)
+  cat("Created plot directory:", plot_dir, "\n")
+}
+
+# Function to save ggplot objects
+save_plot <- function(plot_obj, filename, width = 10, height = 7) {
+  full_path <- file.path(plot_dir, filename)
+  ggsave(full_path, plot = plot_obj, width = width, height = height, dpi = 300)
+  cat("Saved:", filename, "\n")
+}
+
+# Check the structure of the data
+cat("Dataset Structure:\n")
+str(data)
+
+# Create summary statistics
+cat("\nSummary Statistics:\n")
+summary(data)
+
+# Convert categorical variables to factors
+data$SEX <- factor(data$SEX, levels = c(1, 2), labels = c("Male", "Female"))
+data$SMOKSTAT <- factor(data$SMOKSTAT, levels = c(1, 2, 3), 
+                        labels = c("Never", "Former", "Current"))
+data$VITUSE <- factor(data$VITUSE, levels = c(1, 2, 3),
+                     labels = c("Often", "Sometimes", "Never"))
+
+# 1. Histograms for continuous variables and save them
+create_and_save_histograms <- function() {
+  continuous_vars <- c("AGE", "QUETELET", "CALORIES", "FAT", "FIBER", 
+                      "ALCOHOL", "CHOLESTEROL", "BETADIET", "RETDIET",
+                      "BETAPLASMA", "RETPLASMA")
+  
+  for(var in continuous_vars) {
+    p <- ggplot(data, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "steelblue", color = "black", alpha = 0.7) +
+      geom_density(aes(y = after_stat(count)), color = "red", size = 1) +
+      labs(title = paste("Distribution of", var),
+           x = var, y = "Frequency") +
+      theme_minimal()
+    
+    # Save individual histogram
+    save_plot(p, paste0("histogram_", tolower(var), ".png"))
+    
+    # Also print to RStudio plot window
+    print(p)
+  }
+  
+  # Create a combined histogram grid
+  cat("\nCreating combined histogram grid...\n")
+  grid_plots <- list()
+  for(i in 1:length(continuous_vars)) {
+    var <- continuous_vars[i]
+    p <- ggplot(data, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "steelblue", color = "black", alpha = 0.7) +
+      labs(title = var, x = "", y = "") +
+      theme_minimal() +
+      theme(plot.title = element_text(size = 10))
+    grid_plots[[i]] <- p
+  }
+  
+  # Save the combined grid
+  grid_combined <- grid.arrange(grobs = grid_plots, ncol = 4)
+  ggsave(file.path(plot_dir, "all_histograms_grid.png"), 
+         plot = grid_combined, width = 16, height = 12, dpi = 300)
+  cat("Saved: all_histograms_grid.png\n")
+}
+
+# Run histogram creation
+create_and_save_histograms()
+
+# 2. Create and save boxplots
+create_and_save_boxplots <- function() {
+  # Boxplots by sex
+  p1 <- ggplot(data, aes(x = SEX, y = AGE, fill = SEX)) +
+    geom_boxplot() +
+    labs(title = "Age Distribution by Sex") +
+    theme_minimal()
+  
+  p2 <- ggplot(data, aes(x = SEX, y = BETAPLASMA, fill = SEX)) +
+    geom_boxplot() +
+    labs(title = "Beta-Carotene Plasma by Sex") +
+    theme_minimal()
+  
+  p3 <- ggplot(data, aes(x = SEX, y = RETPLASMA, fill = SEX)) +
+    geom_boxplot() +
+    labs(title = "Retinol Plasma by Sex") +
+    theme_minimal()
+  
+  # Boxplots by smoking status
+  p4 <- ggplot(data, aes(x = SMOKSTAT, y = AGE, fill = SMOKSTAT)) +
+    geom_boxplot() +
+    labs(title = "Age by Smoking Status") +
+    theme_minimal()
+  
+  p5 <- ggplot(data, aes(x = SMOKSTAT, y = BETAPLASMA, fill = SMOKSTAT)) +
+    geom_boxplot() +
+    labs(title = "Beta-Carotene by Smoking Status") +
+    theme_minimal()
+  
+  p6 <- ggplot(data, aes(x = SMOKSTAT, y = RETPLASMA, fill = SMOKSTAT)) +
+    geom_boxplot() +
+    labs(title = "Retinol by Smoking Status") +
+    theme_minimal()
+  
+  # Boxplots by vitamin use
+  p7 <- ggplot(data, aes(x = VITUSE, y = BETAPLASMA, fill = VITUSE)) +
+    geom_boxplot() +
+    labs(title = "Beta-Carotene by Vitamin Use") +
+    theme_minimal()
+  
+  p8 <- ggplot(data, aes(x = VITUSE, y = RETPLASMA, fill = VITUSE)) +
+    geom_boxplot() +
+    labs(title = "Retinol by Vitamin Use") +
+    theme_minimal()
+  
+  # Save individual boxplots
+  boxplots <- list(p1, p2, p3, p4, p5, p6, p7, p8)
+  names <- c("boxplot_age_by_sex", "boxplot_beta_by_sex", "boxplot_retinol_by_sex",
+             "boxplot_age_by_smoking", "boxplot_beta_by_smoking", "boxplot_retinol_by_smoking",
+             "boxplot_beta_by_vitamin", "boxplot_retinol_by_vitamin")
+  
+  for(i in 1:length(boxplots)) {
+    save_plot(boxplots[[i]], paste0(names[i], ".png"))
+  }
+  
+  # Save combined grids
+  grid1 <- grid.arrange(grobs = boxplots[1:4], ncol = 2)
+  ggsave(file.path(plot_dir, "boxplots_grid1.png"), plot = grid1, width = 14, height = 10, dpi = 300)
+  
+  grid2 <- grid.arrange(grobs = boxplots[5:8], ncol = 2)
+  ggsave(file.path(plot_dir, "boxplots_grid2.png"), plot = grid2, width = 14, height = 10, dpi = 300)
+  
+  cat("\nBoxplots saved to directory\n")
+  
+  # Return plots for display
+  return(boxplots)
+}
+
+# Run boxplot creation
+box_plots <- create_and_save_boxplots()
+
+# Display boxplots in RStudio
+grid.arrange(grobs = box_plots[1:4], ncol = 2)
+grid.arrange(grobs = box_plots[5:8], ncol = 2)
+
+# 3. Create and save scatterplots
+create_and_save_scatterplots <- function() {
+  # Relationship between dietary intake and plasma levels
+  p1 <- ggplot(data, aes(x = BETADIET, y = BETAPLASMA)) +
+    geom_point(alpha = 0.6, color = "darkorange") +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Dietary vs Plasma Beta-Carotene",
+         x = "Dietary Beta-Carotene (mcg/day)",
+         y = "Plasma Beta-Carotene (ng/ml)") +
+    theme_minimal()
+  
+  p2 <- ggplot(data, aes(x = RETDIET, y = RETPLASMA)) +
+    geom_point(alpha = 0.6, color = "darkgreen") +
+    geom_smooth(method = "lm", color = "red", se = FALSE) +
+    labs(title = "Dietary vs Plasma Retinol",
+         x = "Dietary Retinol (mcg/day)",
+         y = "Plasma Retinol (ng/ml)") +
+    theme_minimal()
+  
+  # Relationship with age
+  p3 <- ggplot(data, aes(x = AGE, y = RETPLASMA)) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "lm", color = "purple", se = FALSE) +
+    labs(title = "Age vs Plasma Retinol",
+         x = "Age (years)",
+         y = "Plasma Retinol (ng/ml)") +
+    theme_minimal()
+  
+  p4 <- ggplot(data, aes(x = AGE, y = BETAPLASMA)) +
+    geom_point(alpha = 0.6) +
+    geom_smooth(method = "lm", color = "brown", se = FALSE) +
+    labs(title = "Age vs Plasma Beta-Carotene",
+         x = "Age (years)",
+         y = "Plasma Beta-Carotene (ng/ml)") +
+    theme_minimal()
+  
+  # Relationship with Quetelet index
+  p5 <- ggplot(data, aes(x = QUETELET, y = BETAPLASMA)) +
+    geom_point(alpha = 0.6, color = "darkred") +
+    geom_smooth(method = "lm", color = "black", se = FALSE) +
+    labs(title = "Quetelet Index vs Beta-Carotene",
+         x = "Quetelet Index (kg/m²)",
+         y = "Plasma Beta-Carotene (ng/ml)") +
+    theme_minimal()
+  
+  p6 <- ggplot(data, aes(x = QUETELET, y = RETPLASMA)) +
+    geom_point(alpha = 0.6, color = "navy") +
+    geom_smooth(method = "lm", color = "darkgreen", se = FALSE) +
+    labs(title = "Quetelet Index vs Retinol",
+         x = "Quetelet Index (kg/m²)",
+         y = "Plasma Retinol (ng/ml)") +
+    theme_minimal()
+  
+  # Save individual scatterplots
+  scatterplots <- list(p1, p2, p3, p4, p5, p6)
+  names <- c("scatter_beta_diet_vs_plasma", "scatter_retinol_diet_vs_plasma",
+             "scatter_age_vs_retinol", "scatter_age_vs_beta",
+             "scatter_quetelet_vs_beta", "scatter_quetelet_vs_retinol")
+  
+  for(i in 1:length(scatterplots)) {
+    save_plot(scatterplots[[i]], paste0(names[i], ".png"))
+  }
+  
+  # Save combined grids
+  grid1 <- grid.arrange(grobs = scatterplots[1:3], ncol = 3)
+  ggsave(file.path(plot_dir, "scatterplots_grid1.png"), plot = grid1, width = 18, height = 6, dpi = 300)
+  
+  grid2 <- grid.arrange(grobs = scatterplots[4:6], ncol = 3)
+  ggsave(file.path(plot_dir, "scatterplots_grid2.png"), plot = grid2, width = 18, height = 6, dpi = 300)
+  
+  cat("\nScatterplots saved to directory\n")
+  
+  # Return plots for display
+  return(scatterplots)
+}
+
+# Run scatterplot creation
+scatter_plots <- create_and_save_scatterplots()
+
+# Display scatterplots in RStudio
+grid.arrange(grobs = scatter_plots[1:3], ncol = 3)
+grid.arrange(grobs = scatter_plots[4:6], ncol = 3)
+
+# 4. Save correlation matrix as image
+cat("\nCreating correlation matrix plot...\n")
+continuous_data <- data %>% select(where(is.numeric))
+cor_matrix <- cor(continuous_data, use = "complete.obs")
+
+# Save correlation plot as PNG
+png(file.path(plot_dir, "correlation_matrix.png"), width = 1200, height = 1000, res = 150)
+corrplot(cor_matrix, method = "color", type = "upper",
+         tl.col = "black", tl.srt = 45,
+         title = "Correlation Matrix of Continuous Variables",
+         mar = c(0, 0, 2, 0))
+dev.off()
+cat("Saved: correlation_matrix.png\n")
+
+# Also create a simpler version
+png(file.path(plot_dir, "correlation_matrix_simple.png"), width = 1000, height = 800, res = 150)
+corrplot(cor_matrix, method = "circle", type = "upper",
+         tl.col = "black", tl.srt = 45,
+         title = "Correlation Matrix")
+dev.off()
+cat("Saved: correlation_matrix_simple.png\n")
+
+# Print key correlations
+cat("\nKey Correlations:\n")
+cat("Correlation between BETAPLASMA and BETADIET:", 
+    round(cor(data$BETAPLASMA, data$BETADIET, use = "complete.obs"), 3), "\n")
+cat("Correlation between RETPLASMA and RETDIET:", 
+    round(cor(data$RETPLASMA, data$RETDIET, use = "complete.obs"), 3), "\n")
+cat("Correlation between BETAPLASMA and FIBER:", 
+    round(cor(data$BETAPLASMA, data$FIBER, use = "complete.obs"), 3), "\n")
+cat("Correlation between BETAPLASMA and QUETELET:", 
+    round(cor(data$BETAPLASMA, data$QUETELET, use = "complete.obs"), 3), "\n")
+cat("Correlation between ALCOHOL and RETPLASMA:", 
+    round(cor(data$ALCOHOL, data$RETPLASMA, use = "complete.obs"), 3), "\n")
+
+# 5. Check for outliers
+check_outliers <- function() {
+  cat("\nOutlier Detection (values beyond 1.5 * IQR):\n")
+  
+  numeric_vars <- names(data)[sapply(data, is.numeric)]
+  
+  for(var in numeric_vars) {
+    qnt <- quantile(data[[var]], probs = c(0.25, 0.75), na.rm = TRUE)
+    iqr <- IQR(data[[var]], na.rm = TRUE)
+    lower <- qnt[1] - 1.5 * iqr
+    upper <- qnt[2] + 1.5 * iqr
+    
+    outliers <- sum(data[[var]] < lower | data[[var]] > upper, na.rm = TRUE)
+    cat(sprintf("%-15s: %2d potential outliers\n", var, outliers))
+  }
+}
+
+check_outliers()
+
+# 6. Create summary tables and save them as CSV files
+cat("\nCreating summary tables...\n")
+
+# Summary by Sex
+sex_summary <- data %>% 
+  group_by(SEX) %>% 
+  summarise(
+    n = n(),
+    mean_age = mean(AGE, na.rm = TRUE),
+    sd_age = sd(AGE, na.rm = TRUE),
+    mean_beta = mean(BETAPLASMA, na.rm = TRUE),
+    sd_beta = sd(BETAPLASMA, na.rm = TRUE),
+    mean_retinol = mean(RETPLASMA, na.rm = TRUE),
+    sd_retinol = sd(RETPLASMA, na.rm = TRUE),
+    mean_quetelet = mean(QUETELET, na.rm = TRUE),
+    sd_quetelet = sd(QUETELET, na.rm = TRUE)
+  )
+
+write.csv(sex_summary, file.path(plot_dir, "summary_by_sex.csv"), row.names = FALSE)
+cat("Saved: summary_by_sex.csv\n")
+
+# Summary by Smoking Status
+smoking_summary <- data %>% 
+  group_by(SMOKSTAT) %>% 
+  summarise(
+    n = n(),
+    mean_age = mean(AGE, na.rm = TRUE),
+    sd_age = sd(AGE, na.rm = TRUE),
+    mean_beta = mean(BETAPLASMA, na.rm = TRUE),
+    sd_beta = sd(BETAPLASMA, na.rm = TRUE),
+    mean_retinol = mean(RETPLASMA, na.rm = TRUE),
+    sd_retinol = sd(RETPLASMA, na.rm = TRUE)
+  )
+
+write.csv(smoking_summary, file.path(plot_dir, "summary_by_smoking.csv"), row.names = FALSE)
+cat("Saved: summary_by_smoking.csv\n")
+
+# Summary by Vitamin Use
+vitamin_summary <- data %>% 
+  group_by(VITUSE) %>% 
+  summarise(
+    n = n(),
+    mean_beta = mean(BETAPLASMA, na.rm = TRUE),
+    sd_beta = sd(BETAPLASMA, na.rm = TRUE),
+    mean_retinol = mean(RETPLASMA, na.rm = TRUE),
+    sd_retinol = sd(RETPLASMA, na.rm = TRUE)
+  )
+
+write.csv(vitamin_summary, file.path(plot_dir, "summary_by_vitamin.csv"), row.names = FALSE)
+cat("Saved: summary_by_vitamin.csv\n")
+
+# 7. Create a summary text file
+cat("\nCreating summary report...\n")
+sink(file.path(plot_dir, "eda_summary_report.txt"))
+cat("EXPLORATORY DATA ANALYSIS SUMMARY REPORT\n")
+cat("========================================\n")
+cat("Dataset: Plasma Retinol and Beta-Carotene Study\n")
+cat("Date:", as.character(Sys.Date()), "\n")
+cat("Time:", as.character(Sys.time()), "\n\n")
+
+cat("DATA OVERVIEW\n")
+cat("-------------\n")
+cat("Total observations:", nrow(data), "\n")
+cat("Total variables:", ncol(data), "\n\n")
+
+cat("VARIABLE TYPES\n")
+cat("--------------\n")
+for(col in names(data)) {
+  cat(col, ":", class(data[[col]]), "\n")
+}
+cat("\n")
+
+cat("KEY FINDINGS\n")
+cat("------------\n")
+cat("1. Plasma beta-carotene shows strong right skewness\n")
+cat("2. Several variables have potential outliers (see outlier detection above)\n")
+cat("3. Vitamin users have higher plasma beta-carotene levels\n")
+cat("4. Current smokers have lower antioxidant levels\n")
+cat("5. Dietary intake correlates moderately with plasma levels\n\n")
+
+# Print key correlations
+cat("KEY CORRELATIONS\n")
+cat("----------------\n")
+cat("BETAPLASMA ~ BETADIET:", round(cor(data$BETAPLASMA, data$BETADIET, use = "complete.obs"), 3), "\n")
+cat("RETPLASMA ~ RETDIET:", round(cor(data$RETPLASMA, data$RETDIET, use = "complete.obs"), 3), "\n")
+cat("BETAPLASMA ~ FIBER:", round(cor(data$BETAPLASMA, data$FIBER, use = "complete.obs"), 3), "\n")
+cat("BETAPLASMA ~ QUETELET:", round(cor(data$BETAPLASMA, data$QUETELET, use = "complete.obs"), 3), "\n")
+cat("ALCOHOL ~ RETPLASMA:", round(cor(data$ALCOHOL, data$RETPLASMA, use = "complete.obs"), 3), "\n\n")
+
+cat("FILES SAVED\n")
+cat("-----------\n")
+cat("• All plots saved as PNG images\n")
+cat("• Summary tables saved as CSV files\n")
+cat("• This summary report\n")
+cat("\nAnalysis complete. Check the folder:", plot_dir, "\n")
+sink()
+
+cat("\n========================================\n")
+cat("ANALYSIS COMPLETE!\n")
+cat("All graphs and summary files have been saved to:\n")
+cat(plot_dir, "\n")
+cat("\nYou'll find:\n")
+cat("• Individual histogram plots\n")
+cat("• Combined histogram grid\n")
+cat("• Boxplots by categories\n")
+cat("• Scatterplots of key relationships\n")
+cat("• Correlation matrix plots\n")
+cat("• Summary tables in CSV format\n")
+cat("• A comprehensive summary report\n")
+cat("========================================\n")
+
